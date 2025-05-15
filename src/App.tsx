@@ -1,10 +1,11 @@
 import './App.css';
+import Map from './components/Map';
 
 function App() {
     return (
-        <>
-            <div>Hello World!</div>
-        </>
+        <div className="w-full min-h-screen h-screen">
+            <Map />
+        </div>
     );
 }
 
