@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { GoogleMap, LoadScript, Marker, InfoWindow, OverlayView } from '@react-google-maps/api';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
 import { nanoid } from 'nanoid';
@@ -88,6 +88,7 @@ const containerStyle = {
 // Default (no override) when zoomed in
 
 const mapOptions: google.maps.MapOptions = {
+    mapId: import.meta.env.VITE_GOOGLE_MAP_ID_CITY,
     disableDefaultUI: true,
     zoomControl: true,
     clickableIcons: false,
@@ -100,10 +101,12 @@ const mapOptions: google.maps.MapOptions = {
         strictBounds: true,
     },
     draggableCursor: 'text',
-    styles: cityLevelStyles,
+    // styles: cityLevelSimtyles,
 };
 
 const defaultCenter: google.maps.LatLngLiteral = { lat: 40.7128, lng: -74.006 };
+// const GOOGLE_LIBRARIES: 'marker'[] = ['marker'];
+const GOOGLE_LIBRARIES: ('marker' | 'geometry' | 'places')[] = ['marker'];
 
 export default function Map() {
     const [map, setMap] = useState<google.maps.Map | null>(null);
@@ -112,6 +115,17 @@ export default function Map() {
     const [zoomLevel, setZoomLevel] = useState<number>(0);
     const [lastFocusedLocation, setLastFocusedLocation] = useState<GeneralLocation | null>(null);
     const [currentFocusedLocation, setCurrentFocusedLocation] = useState<GeneralLocation | null>(null);
+
+    const [cityTowns, setCityTowns] = useState<CityData[]>([]);
+    const [stateProvinces, setStateProvinces] = useState<CityData[]>([]);
+    const [countries, setCountries] = useState<CityData[]>([]);
+
+    const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+    const [center, setCenter] = useState<google.maps.LatLngLiteral>(defaultCenter);
+    const [notesVisible, setNotesVisible] = useState<boolean>(false);
+    const [cityTownsVisible, setCityTownsVisible] = useState<boolean>(false);
+    const [stateProvincesVisible, setStateProvincesVisible] = useState<boolean>(false);
+    const [countriesVisible, setCountriesVisible] = useState<boolean>(false);
 
     const [notes, setNotes] = useState<Note[]>(() => {
         try {
@@ -129,20 +143,6 @@ export default function Map() {
             return [];
         }
     });
-
-    // const [cityTowns, setCityTowns] = useState<CityTown[]>([]);
-    // const [stateProvinces, setStateProvinces] = useState<StateProvince[]>([]);
-    // const [countries, setCountries] = useState<Country[]>([]);
-    const [cityTowns, setCityTowns] = useState<CityData[]>([]);
-    const [stateProvinces, setStateProvinces] = useState<CityData[]>([]);
-    const [countries, setCountries] = useState<CityData[]>([]);
-
-    const [selectedNote, setSelectedNote] = useState<Note | null>(null);
-    const [center, setCenter] = useState<google.maps.LatLngLiteral>(defaultCenter);
-    const [notesVisible, setNotesVisible] = useState<boolean>(false);
-    const [cityTownsVisible, setCityTownsVisible] = useState<boolean>(false);
-    const [stateProvincesVisible, setStateProvincesVisible] = useState<boolean>(false);
-    const [countriesVisible, setCountriesVisible] = useState<boolean>(false);
 
     async function getCoordinatesFromLocation(query: string): Promise<Coordinates | null> {
         const url = `https://nominatim.openstreetmap.org/search.php?q=${query}&format=jsonv2`;
@@ -324,22 +324,28 @@ export default function Map() {
 
             if (zoomLevel <= 3) {
                 styles = globeLevelStyles;
-                map.setOptions({ styles: styles });
+                // map.setOptions({ styles: styles });
+                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_GLOBE });
             } else if (zoomLevel > 3 && zoomLevel <= 5) {
                 styles = countryLevelStyles;
-                map.setOptions({ styles: styles });
+                // map.setOptions({ styles: styles });
+                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_COUNTRY });
             } else if (zoomLevel > 5 && zoomLevel <= 9) {
                 styles = stateLevelStyles;
-                map.setOptions({ styles: styles });
+                // map.setOptions({ styles: styles });
+                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_STATE });
             } else if (zoomLevel > 9 && zoomLevel <= 13) {
                 styles = cityLevelStyles;
-                map.setOptions({ styles: styles });
+                // map.setOptions({ styles: styles });
+                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_CITY });
             } else if (zoomLevel > 13 && zoomLevel <= 16) {
                 styles = neighborhoodLevelStyles;
-                map.setOptions({ styles: styles });
+                // map.setOptions({ styles: styles });
+                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_NEIGHBORHOOD });
             } else {
                 styles = streetLevelStyles;
-                map.setOptions({ styles: styles });
+                // map.setOptions({ styles: styles });
+                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_STREET });
             }
 
             if (zoomLevel === 9) {
@@ -351,22 +357,23 @@ export default function Map() {
                         stylers: [{ visibility: 'off' }],
                     },
                 ];
-                map.setOptions({
-                    styles,
-                });
+                // map.setOptions({ styles });
+
+                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_EQUAL_TO_9 });
             } else if (zoomLevel < 5) {
-                styles = [
-                    ...styles,
-                    {
-                        featureType: 'administrative',
-                        elementType: 'geometry',
-                        stylers: [{ visibility: 'off' }],
-                    },
-                ];
+                // styles = [
+                //     ...styles,
+                //     {
+                //         featureType: 'administrative',
+                //         elementType: 'geometry',
+                //         stylers: [{ visibility: 'off' }],
+                //     },
+                // ];
                 map.setOptions({
-                    styles,
+                    // styles,
                     draggableCursor: 'default',
                 });
+                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_LESS_THAN_5 });
             }
 
             if (zoomLevel <= 3) {
@@ -490,14 +497,52 @@ export default function Map() {
         }
     }, []);
 
+    // Refs to hold AdvancedMarkerElement instances
+    const noteMarkers = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+
     // Initialize clustering
     const onMapLoad = useCallback((mapInstance: google.maps.Map) => {
         setMap(mapInstance);
         new MarkerClusterer({ map: mapInstance });
     }, []);
 
+    // Create & manage AdvancedMarkerElements for notes
+    useEffect(() => {
+        if (!map) return;
+
+        // Clear old markers
+        noteMarkers.current.forEach((m) => (m.map = null));
+        noteMarkers.current = [];
+
+        if (notesVisible) {
+            notes.forEach((note) => {
+                // create a DOM node for the marker
+                const element = document.createElement('div');
+                element.className = 'bg-black text-white px-4 py-2 rounded-full text-xs';
+                element.style.cursor = 'pointer';
+                element.innerText = note.text;
+
+                // stop map interactions when clicking the overlay
+                element.addEventListener('mousedown', (e) => e.stopPropagation());
+                element.addEventListener('click', () => setSelectedNote(note));
+
+                // instantiate the AdvancedMarkerElement
+                const marker = new google.maps.marker.AdvancedMarkerElement({
+                    position: {
+                        lat: note.location.coordinates.latitude,
+                        lng: note.location.coordinates.longitude,
+                    },
+                    map,
+                    content: element,
+                });
+
+                noteMarkers.current.push(marker);
+            });
+        }
+    }, [map, notes, notesVisible]);
+
     return (
-        <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string}>
+        <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string} libraries={GOOGLE_LIBRARIES}>
             <GoogleMap
                 mapContainerStyle={containerStyle}
                 center={center}
@@ -529,8 +574,20 @@ export default function Map() {
                     )}
                 </div>
 
+                {selectedNote && (
+                    <InfoWindow
+                        position={{
+                            lat: selectedNote.location.coordinates.latitude,
+                            lng: selectedNote.location.coordinates.longitude,
+                        }}
+                        onCloseClick={() => setSelectedNote(null)}
+                    >
+                        <div>{selectedNote.text}</div>
+                    </InfoWindow>
+                )}
+
                 {/* Note markers */}
-                {notesVisible &&
+                {/* {notesVisible &&
                     map &&
                     notes.map((note) => (
                         <OverlayView
@@ -561,7 +618,7 @@ export default function Map() {
                                 {note.text}
                             </div>
                         </OverlayView>
-                    ))}
+                    ))} */}
 
                 {cityTownsVisible &&
                     map &&
