@@ -132,3 +132,21 @@ export const globeLevelStyles: google.maps.MapTypeStyle[] = [
         stylers: [{ visibility: 'off' }],
     },
 ];
+
+export const equalTo9Styles: google.maps.MapTypeStyle[] = [
+    ...stateLevelStyles,
+    {
+        featureType: 'all',
+        elementType: 'labels.text',
+        stylers: [{ visibility: 'off' }],
+    },
+];
+
+export const lessThan5Styles: google.maps.MapTypeStyle[] = [
+    ...countryLevelStyles,
+    {
+        featureType: 'administrative',
+        elementType: 'geometry',
+        stylers: [{ visibility: 'off' }],
+    },
+];

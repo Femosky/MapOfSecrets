@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { GoogleMap, LoadScript, Marker, InfoWindow, OverlayView } from '@react-google-maps/api';
+import { GoogleMap, LoadScript, Marker, InfoWindow } from '@react-google-maps/api';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
-import { nanoid } from 'nanoid';
+// import { nanoid } from 'nanoid';
+import { makeHTMLMarkerClass } from '../model/HTMLMarker';
 
 import {
     cityLevelStyles,
     countryLevelStyles,
+    equalTo9Styles,
     globeLevelStyles,
+    lessThan5Styles,
     neighborhoodLevelStyles,
     stateLevelStyles,
     streetLevelStyles,
@@ -19,11 +22,6 @@ interface AddressOSM {
     stateProvince: string;
     country: string;
 }
-
-const stockCoordinates: Coordinates = {
-    latitude: 43.526646,
-    longitude: -79.891205,
-};
 
 interface Coordinates {
     latitude: number;
@@ -55,29 +53,9 @@ interface Location {
 
 interface Note {
     id: number;
+    timestamp: Date;
     location: Location;
     text: string;
-}
-
-interface CityTown {
-    id: string;
-    name: string;
-    stateProvince: string;
-    country: string;
-    coordinates: Coordinates;
-}
-
-interface StateProvince {
-    id: string;
-    name: string;
-    country: string;
-    coordinates: Coordinates;
-}
-
-interface Country {
-    id: string;
-    name: string;
-    coordinates: Coordinates;
 }
 
 const containerStyle = {
@@ -88,7 +66,7 @@ const containerStyle = {
 // Default (no override) when zoomed in
 
 const mapOptions: google.maps.MapOptions = {
-    mapId: import.meta.env.VITE_GOOGLE_MAP_ID_CITY,
+    // mapId: import.meta.env.VITE_GOOGLE_MAP_ID_CITY,
     disableDefaultUI: true,
     zoomControl: true,
     clickableIcons: false,
@@ -101,12 +79,17 @@ const mapOptions: google.maps.MapOptions = {
         strictBounds: true,
     },
     draggableCursor: 'text',
-    // styles: cityLevelSimtyles,
+    styles: cityLevelStyles,
 };
 
-const defaultCenter: google.maps.LatLngLiteral = { lat: 40.7128, lng: -74.006 };
-// const GOOGLE_LIBRARIES: 'marker'[] = ['marker'];
-const GOOGLE_LIBRARIES: ('marker' | 'geometry' | 'places')[] = ['marker'];
+// const stockCoordinates: Coordinates = {
+//     latitude: 43.526646,
+//     longitude: -79.891205,
+// };
+// const defaultCenter: google.maps.LatLngLiteral = { lat: 40.7128, lng: -74.006 };
+const defaultCenter: google.maps.LatLngLiteral = { lat: 43.526646, lng: -79.891205 };
+
+// const GOOGLE_LIBRARIES: ('marker' | 'geometry' | 'places')[] = ['marker'];
 
 export default function Map() {
     const [map, setMap] = useState<google.maps.Map | null>(null);
@@ -126,6 +109,11 @@ export default function Map() {
     const [cityTownsVisible, setCityTownsVisible] = useState<boolean>(false);
     const [stateProvincesVisible, setStateProvincesVisible] = useState<boolean>(false);
     const [countriesVisible, setCountriesVisible] = useState<boolean>(false);
+
+    const [loadingSaveNote, setLoadingSaveNote] = useState<boolean>(false);
+    const [loadingCoordinates, setLoadingCoordinates] = useState<Coordinates[]>([]);
+
+    const [error, setError] = useState<string | null>(null);
 
     const [notes, setNotes] = useState<Note[]>(() => {
         try {
@@ -160,6 +148,7 @@ export default function Map() {
             };
         } catch (err) {
             console.log(err);
+            setError(String(err));
             return null;
         }
     }
@@ -187,6 +176,7 @@ export default function Map() {
             return generalCoordinates;
         } catch (err) {
             console.error("Couldn't get general coordinates", err);
+            setError(String(err));
             return null;
         }
     }
@@ -194,32 +184,39 @@ export default function Map() {
     async function getLocationData(lat: number, lng: number): Promise<Location | null> {
         const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`;
         try {
-            const { address } = await fetch(url).then((res) => res.json());
+            const { address, error } = await fetch(url).then((res) => res.json());
+
+            if (error) {
+                setError(error);
+                return null;
+            }
+
+            if (!address) return null;
+
             const parsedAddress: AddressOSM = {
-                cityTown: address.city || address.town,
+                cityTown: address.city || address.town || address.county,
                 stateProvince: address.state,
                 country: address.country,
             };
 
-            if (!parsedAddress) {
-                throw Error('Failed to parse address');
-            }
+            if (!parsedAddress) throw Error('Failed to parse address');
 
             const generalCoordinates: GeneralCoordinates | null = await getGeneralCoordinates(parsedAddress);
 
-            if (!address || !generalCoordinates) return null;
+            if (!generalCoordinates) throw Error('Failed to get general location data.');
 
             const coordinates: Coordinates = { latitude: lat, longitude: lng };
             return {
                 id: Date.now(),
                 coordinates,
                 generalCoordinates,
-                cityTown: address.city || address.town,
+                cityTown: address.city || address.town || address.county,
                 statePovince: address.state,
                 country: address.country,
             };
         } catch (err) {
             console.error('', err);
+            setError(String(err));
             return null;
         }
     }
@@ -248,6 +245,13 @@ export default function Map() {
         setStateProvincesVisible(false);
         setCountriesVisible(true);
     }
+
+    useEffect(() => {
+        if (error) {
+            alert(error);
+            setError(null);
+        }
+    }, [error]);
 
     useEffect(() => {
         if (!map) return;
@@ -309,6 +313,8 @@ export default function Map() {
         }
 
         setLastFocusedLocation(currentFocusedLocation);
+
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentFocusedLocation]);
 
     // Map Zoom
@@ -322,60 +328,37 @@ export default function Map() {
 
             let styles: google.maps.MapTypeStyle[];
 
+            // Administrative Level Styles
             if (zoomLevel <= 3) {
                 styles = globeLevelStyles;
-                // map.setOptions({ styles: styles });
-                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_GLOBE });
+                map.setOptions({ styles: styles });
             } else if (zoomLevel > 3 && zoomLevel <= 5) {
                 styles = countryLevelStyles;
-                // map.setOptions({ styles: styles });
-                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_COUNTRY });
+                map.setOptions({ styles: styles });
             } else if (zoomLevel > 5 && zoomLevel <= 9) {
                 styles = stateLevelStyles;
-                // map.setOptions({ styles: styles });
-                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_STATE });
+                map.setOptions({ styles: styles });
             } else if (zoomLevel > 9 && zoomLevel <= 13) {
                 styles = cityLevelStyles;
-                // map.setOptions({ styles: styles });
-                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_CITY });
+                map.setOptions({ styles: styles });
             } else if (zoomLevel > 13 && zoomLevel <= 16) {
                 styles = neighborhoodLevelStyles;
-                // map.setOptions({ styles: styles });
-                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_NEIGHBORHOOD });
+                map.setOptions({ styles: styles });
             } else {
                 styles = streetLevelStyles;
-                // map.setOptions({ styles: styles });
-                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_STREET });
+                map.setOptions({ styles: styles });
             }
 
+            // Special Style Cases
             if (zoomLevel === 9) {
-                styles = [
-                    ...styles,
-                    {
-                        featureType: 'all',
-                        elementType: 'labels.text',
-                        stylers: [{ visibility: 'off' }],
-                    },
-                ];
-                // map.setOptions({ styles });
-
-                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_EQUAL_TO_9 });
+                styles = equalTo9Styles;
+                map.setOptions({ styles });
             } else if (zoomLevel < 5) {
-                // styles = [
-                //     ...styles,
-                //     {
-                //         featureType: 'administrative',
-                //         elementType: 'geometry',
-                //         stylers: [{ visibility: 'off' }],
-                //     },
-                // ];
-                map.setOptions({
-                    // styles,
-                    draggableCursor: 'default',
-                });
-                map.setOptions({ mapId: import.meta.env.VITE_GOOGLE_MAP_ID_LESS_THAN_5 });
+                styles = lessThan5Styles;
+                map.setOptions({ styles, draggableCursor: 'default' });
             }
 
+            // Determine Bubble Visibility States
             if (zoomLevel <= 3) {
                 toggleCountriesOn();
             } else if (zoomLevel > 3 && zoomLevel <= 5) {
@@ -387,7 +370,6 @@ export default function Map() {
                 setIsInWritingRange(false);
             } else {
                 toggleNotesOn();
-                // map.setOptions({ draggableCursor: 'text' });
                 setIsInWritingRange(true);
             }
         };
@@ -485,64 +467,132 @@ export default function Map() {
         const text = prompt('Enter your note:');
         if (!text) return;
 
+        setLoadingSaveNote(true);
+        setLoadingCoordinates([{ latitude: lat, longitude: lng }]);
+        console.log({ latitude: lat, longitude: lng });
+
         try {
             const location: Location | null = await getLocationData(lat, lng);
             if (!location) return;
             console.log('LOCATION', location);
 
-            setNotes((current) => [...current, { id: Date.now(), location, text }]);
+            setNotes((current) => [...current, { id: Date.now(), timestamp: new Date(), location, text }]);
             setLocations((current) => [...current, location]);
         } catch (err) {
             console.error('Reverse geocode failed:', err);
+        } finally {
+            setLoadingSaveNote(false);
         }
+
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Refs to hold AdvancedMarkerElement instances
-    const noteMarkers = useRef<google.maps.marker.AdvancedMarkerElement[]>([]);
+    // Markers
+    const mapRef = useRef<google.maps.Map | null>(null);
+    const noteMarkers = useRef<google.maps.OverlayView[]>([]);
+    const cityTownMarkers = useRef<google.maps.OverlayView[]>([]);
+    const stateProvinceMarkers = useRef<google.maps.OverlayView[]>([]);
+    const countryMarkers = useRef<google.maps.OverlayView[]>([]);
+    const loadingMarker = useRef<google.maps.OverlayView[]>([]);
 
     // Initialize clustering
     const onMapLoad = useCallback((mapInstance: google.maps.Map) => {
+        mapRef.current = mapInstance;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (mapRef as any).HTMLMarker = makeHTMLMarkerClass();
         setMap(mapInstance);
         new MarkerClusterer({ map: mapInstance });
     }, []);
 
-    // Create & manage AdvancedMarkerElements for notes
+    // Display Markers
     useEffect(() => {
-        if (!map) return;
+        if (!mapRef.current) return;
 
-        // Clear old markers
-        noteMarkers.current.forEach((m) => (m.map = null));
-        noteMarkers.current = [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const HTMLMarker = (mapRef as any).HTMLMarker as any;
 
-        if (notesVisible) {
-            notes.forEach((note) => {
-                // create a DOM node for the marker
-                const element = document.createElement('div');
-                element.className = 'bg-black text-white px-4 py-2 rounded-full text-xs';
-                element.style.cursor = 'pointer';
-                element.innerText = note.text;
-
-                // stop map interactions when clicking the overlay
-                element.addEventListener('mousedown', (e) => e.stopPropagation());
-                element.addEventListener('click', () => setSelectedNote(note));
-
-                // instantiate the AdvancedMarkerElement
-                const marker = new google.maps.marker.AdvancedMarkerElement({
-                    position: {
-                        lat: note.location.coordinates.latitude,
-                        lng: note.location.coordinates.longitude,
+        loadingMarker.current.forEach((m) => m.setMap(null));
+        loadingMarker.current = [];
+        if (loadingSaveNote) {
+            loadingMarker.current = loadingCoordinates.map((coordinates) => {
+                return new HTMLMarker(
+                    mapRef.current!,
+                    {
+                        lat: coordinates.latitude,
+                        lng: coordinates.longitude,
                     },
-                    map,
-                    content: element,
-                });
-
-                noteMarkers.current.push(marker);
+                    'Loading...',
+                    'loading'
+                );
             });
         }
-    }, [map, notes, notesVisible]);
+
+        noteMarkers.current.forEach((m) => m.setMap(null));
+        noteMarkers.current = [];
+        if (notesVisible) {
+            noteMarkers.current = notes.map((note) => {
+                return new HTMLMarker(
+                    mapRef.current!,
+                    { lat: note.location.coordinates.latitude, lng: note.location.coordinates.longitude },
+                    note.text,
+                    'note'
+                );
+            });
+        }
+
+        cityTownMarkers.current.forEach((m) => m.setMap(null));
+        cityTownMarkers.current = [];
+        if (cityTownsVisible) {
+            cityTownMarkers.current = cityTowns.map((cityTown) => {
+                return new HTMLMarker(
+                    mapRef.current!,
+                    { lat: cityTown[1].latitude, lng: cityTown[1].longitude },
+                    cityTown[0],
+                    'cityTown'
+                );
+            });
+        }
+
+        stateProvinceMarkers.current.forEach((m) => m.setMap(null));
+        stateProvinceMarkers.current = [];
+        if (stateProvincesVisible) {
+            stateProvinceMarkers.current = stateProvinces.map((stateProvince) => {
+                return new HTMLMarker(
+                    mapRef.current!,
+                    { lat: stateProvince[1].latitude, lng: stateProvince[1].longitude },
+                    stateProvince[0],
+                    'stateProvince'
+                );
+            });
+        }
+
+        countryMarkers.current.forEach((m) => m.setMap(null));
+        countryMarkers.current = [];
+        if (countriesVisible) {
+            countryMarkers.current = countries.map((country) => {
+                return new HTMLMarker(
+                    mapRef.current!,
+                    { lat: country[1].latitude, lng: country[1].longitude },
+                    country[0],
+                    'country'
+                );
+            });
+        }
+    }, [
+        notesVisible,
+        cityTownsVisible,
+        stateProvincesVisible,
+        countriesVisible,
+        notes,
+        cityTowns,
+        stateProvinces,
+        countries,
+        loadingSaveNote,
+        loadingCoordinates,
+    ]);
 
     return (
-        <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string} libraries={GOOGLE_LIBRARIES}>
+        <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string}>
             <GoogleMap
                 mapContainerStyle={containerStyle}
                 center={center}
@@ -585,145 +635,6 @@ export default function Map() {
                         <div>{selectedNote.text}</div>
                     </InfoWindow>
                 )}
-
-                {/* Note markers */}
-                {/* {notesVisible &&
-                    map &&
-                    notes.map((note) => (
-                        <OverlayView
-                            key={note.id}
-                            position={{
-                                lat: note.location.coordinates.latitude,
-                                lng: note.location.coordinates.longitude,
-                            }}
-                            mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-                        >
-                            <div
-                                className="bg-black text-white px-4 py-2 text-center rounded-full shadow-lg text-xs"
-                                style={{
-                                    cursor: 'pointer',
-                                    position: 'absolute',
-                                    top: '0',
-                                    left: '0',
-                                    transform: 'translate(-50%, -50%)',
-                                }}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedNote(note);
-                                }}
-                                onMouseDown={(e) => {
-                                    e.stopPropagation();
-                                }}
-                            >
-                                {note.text}
-                            </div>
-                        </OverlayView>
-                    ))} */}
-
-                {cityTownsVisible &&
-                    map &&
-                    cityTowns.length > 0 &&
-                    cityTowns.map((cityTown, index) => (
-                        <OverlayView
-                            key={`cityTown_${index}`}
-                            position={{
-                                lat: cityTown[1].latitude,
-                                lng: cityTown[1].longitude,
-                            }}
-                            mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-                        >
-                            <div
-                                className="bg-green-400 text-white px-4 py-2 text-center rounded-full shadow-lg text-xs"
-                                style={{
-                                    cursor: 'pointer',
-                                    position: 'absolute',
-                                    top: '0',
-                                    left: '0',
-                                    transform: 'translate(-50%, -50%)',
-                                }}
-                                // onClick={(e) => {
-                                //     e.stopPropagation();
-                                //     setSelectedNote(cityTown);
-                                // }}
-                                onMouseDown={(e) => {
-                                    // Prevent Maps from seeing the mousedown
-                                    e.stopPropagation();
-                                }}
-                            >
-                                {cityTown[0]}
-                            </div>
-                        </OverlayView>
-                    ))}
-
-                {stateProvincesVisible &&
-                    map &&
-                    stateProvinces.length > 0 &&
-                    stateProvinces.map((stateProvince, index) => (
-                        <OverlayView
-                            key={`stateProvince_${index}`}
-                            position={{
-                                lat: stateProvince[1].latitude,
-                                lng: stateProvince[1].longitude,
-                            }}
-                            mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-                        >
-                            <div
-                                className="bg-blue-400 text-white px-4 py-2 text-center rounded-full shadow-lg text-xs"
-                                style={{
-                                    cursor: 'pointer',
-                                    position: 'absolute',
-                                    top: '0',
-                                    left: '0',
-                                    transform: 'translate(-50%, -50%)',
-                                }}
-                                // onClick={(e) => {
-                                //     e.stopPropagation();
-                                //     setSelectedNote(cityTown);
-                                // }}
-                                onMouseDown={(e) => {
-                                    // Prevent Maps from seeing the mousedown
-                                    e.stopPropagation();
-                                }}
-                            >
-                                {stateProvince[0]}
-                            </div>
-                        </OverlayView>
-                    ))}
-
-                {countriesVisible &&
-                    map &&
-                    countries.length > 0 &&
-                    countries.map((country, index) => (
-                        <OverlayView
-                            key={`country_${index}`}
-                            position={{
-                                lat: country[1].latitude,
-                                lng: country[1].longitude,
-                            }}
-                            mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-                        >
-                            <div
-                                className="bg-red-400 text-white px-4 py-2 text-center rounded-full shadow-lg text-xs"
-                                style={{
-                                    cursor: 'pointer',
-                                    position: 'absolute',
-                                    top: '0',
-                                    left: '0',
-                                    transform: 'translate(-50%, -50%)',
-                                }}
-                                // onClick={(e) => {
-                                //     e.stopPropagation();
-                                //     setSelectedNote(cityTown);
-                                // }}
-                                onMouseDown={(e) => {
-                                    // Prevent Maps from seeing the mousedown
-                                    e.stopPropagation();
-                                }}
-                            >
-                                {country[0]}
-                            </div>
-                        </OverlayView>
-                    ))}
 
                 {/* InfoWindow for selected note */}
                 {selectedNote && (
