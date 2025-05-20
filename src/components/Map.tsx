@@ -38,7 +38,7 @@ interface GeneralCoordinates {
 
 interface GeneralLocation {
     cityTown: string;
-    statePovince: string;
+    stateProvince: string;
     country: string;
 }
 
@@ -47,7 +47,7 @@ interface Location {
     coordinates: Coordinates;
     generalCoordinates: GeneralCoordinates;
     cityTown: string;
-    statePovince: string;
+    stateProvince: string;
     country: string;
 }
 
@@ -110,19 +110,17 @@ export default function Map() {
     const [stateProvincesVisible, setStateProvincesVisible] = useState<boolean>(false);
     const [countriesVisible, setCountriesVisible] = useState<boolean>(false);
 
+    const [seenNoteIds, setSeenNoteIds] = useState<Set<number>>(new Set());
+    const [seenCities, setSeenCities] = useState<Set<string>>(new Set());
+
     const [loadingSaveNote, setLoadingSaveNote] = useState<boolean>(false);
     const [loadingCoordinates, setLoadingCoordinates] = useState<Coordinates[]>([]);
 
+    const [isFetchingNotes, setIsFetchingNotes] = useState(false);
+
     const [error, setError] = useState<string | null>(null);
 
-    const [notes, setNotes] = useState<Note[]>(() => {
-        try {
-            const stored = localStorage.getItem('notes');
-            return stored ? (JSON.parse(stored) as Note[]) : [];
-        } catch {
-            return [];
-        }
-    });
+    const [notes, setNotes] = useState<Note[]>([]);
     const [locations, setLocations] = useState<Location[]>(() => {
         try {
             const stored = localStorage.getItem('locations');
@@ -211,7 +209,7 @@ export default function Map() {
                 coordinates,
                 generalCoordinates,
                 cityTown: address.city || address.town || address.county,
-                statePovince: address.state,
+                stateProvince: address.state,
                 country: address.country,
             };
         } catch (err) {
@@ -253,6 +251,7 @@ export default function Map() {
         }
     }, [error]);
 
+    // Determine coordinates of city on the viewport
     useEffect(() => {
         if (!map) return;
 
@@ -271,18 +270,16 @@ export default function Map() {
                     // later entries are higher‐order (locality, admin_area_level_1, country)
                     const components = results[0].address_components;
 
-                    console.log('RSULTS', results);
-
                     const cityTown = components.find((component) => component.types.includes('locality'))?.long_name;
-                    const statePovince = components.find((component) =>
+                    const stateProvince = components.find((component) =>
                         component.types.includes('administrative_area_level_1')
                     )?.long_name;
                     const country = components.find((component) => component.types.includes('country'))?.long_name;
-                    if (cityTown === undefined || statePovince === undefined || country === undefined) return;
+                    if (cityTown === undefined || stateProvince === undefined || country === undefined) return;
 
                     const currentLocation: GeneralLocation = {
                         cityTown,
-                        statePovince,
+                        stateProvince,
                         country,
                     };
 
@@ -307,9 +304,77 @@ export default function Map() {
         console.log('LAST', lastFocusedLocation);
         console.log('CURRENT', currentFocusedLocation);
 
+        async function fetchNotesByCity() {
+            if (isFetchingNotes || !currentFocusedLocation) return;
+
+            setIsFetchingNotes(true);
+            console.log('the location', JSON.stringify(currentFocusedLocation));
+            try {
+                const url = 'http://localhost:3001/notes/city';
+                // const url = 'http://localhost:3001/locations/countries';
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(currentFocusedLocation),
+                });
+                const { notes, error } = await response.json();
+
+                if (error) {
+                    console.log(error);
+                    setSeenCities((prev) =>
+                        new Set(prev).add(
+                            `${currentFocusedLocation.cityTown}, ${currentFocusedLocation.stateProvince}, ${currentFocusedLocation.country}`
+                        )
+                    );
+                    return;
+                }
+                if (!notes) {
+                    // throw Error('No response data.');
+                    setSeenCities((prev) =>
+                        new Set(prev).add(
+                            `${currentFocusedLocation.cityTown}, ${currentFocusedLocation.stateProvince}, ${currentFocusedLocation.country}`
+                        )
+                    );
+                    console.log('No response data.');
+                    return;
+                }
+
+                let preparedNotes: Note[] = [];
+
+                for (let i = 0; i < notes.length; i++) {
+                    const note = notes[i];
+                    const parsedNote: Note = note as Note;
+                    if (seenNoteIds.has(parsedNote.id)) continue;
+
+                    setSeenNoteIds((prev) => new Set(prev).add(i));
+                    preparedNotes.push(parsedNote);
+                }
+
+                setSeenCities((prev) =>
+                    new Set(prev).add(
+                        `${currentFocusedLocation.cityTown}, ${currentFocusedLocation.stateProvince}, ${currentFocusedLocation.country}`
+                    )
+                );
+                setNotes((prev) => [...prev, ...preparedNotes]);
+                console.log('RECEIVED NOTES', preparedNotes);
+            } catch (e) {
+                console.log(e);
+                setError(String(e));
+            } finally {
+                setIsFetchingNotes(false);
+            }
+        }
+
+        if (!currentFocusedLocation) return;
+        const city = `${currentFocusedLocation.cityTown}, ${currentFocusedLocation.stateProvince}, ${currentFocusedLocation.country}`;
+        if (seenCities.has(city)) return;
+
         if (JSON.stringify(currentFocusedLocation) === JSON.stringify(lastFocusedLocation)) {
             // TODO: FETCH FOR ONLY THAT CITY
             console.log(lastFocusedLocation?.cityTown, currentFocusedLocation?.cityTown);
+            fetchNotesByCity();
+        } else {
+            fetchNotesByCity();
         }
 
         setLastFocusedLocation(currentFocusedLocation);
@@ -385,9 +450,11 @@ export default function Map() {
 
     // Persist notes to localStorage
     useEffect(() => {
-        localStorage.setItem('notes', JSON.stringify(notes));
+        // localStorage.setItem('notes', JSON.stringify(notes));
+        console.log('YEPPIE');
     }, [notes]);
 
+    // Sort number of places
     useEffect(() => {
         localStorage.setItem('locations', JSON.stringify(locations));
 
@@ -408,10 +475,10 @@ export default function Map() {
                     cityTowns[location.cityTown] = [1, location.generalCoordinates.cityTown];
                 }
 
-                if (location.statePovince in stateProvinces) {
-                    stateProvinces[location.statePovince][0] += 1;
+                if (location.stateProvince in stateProvinces) {
+                    stateProvinces[location.stateProvince][0] += 1;
                 } else {
-                    stateProvinces[location.statePovince] = [1, location.generalCoordinates.stateProvince];
+                    stateProvinces[location.stateProvince] = [1, location.generalCoordinates.stateProvince];
                 }
 
                 if (location.country in countries) {
