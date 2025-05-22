@@ -17,12 +17,6 @@ import {
 
 // Define the shape of a note
 
-interface AddressOSM {
-    cityTown: string;
-    stateProvince: string;
-    country: string;
-}
-
 interface Coordinates {
     latitude: number;
     longitude: number;
@@ -30,22 +24,36 @@ interface Coordinates {
 
 type CityData = [number, Coordinates];
 
+interface RawLocationCountData {
+    id: number;
+    name: string;
+    latitude: number;
+    longitude: number;
+    count: number;
+}
+
 interface GeneralCoordinates {
     cityTown: Coordinates;
     stateProvince: Coordinates;
     country: Coordinates;
 }
 
+interface PlaceInfo {
+    placeId: string;
+    name: string;
+}
+
 interface GeneralLocation {
-    cityTown: string;
-    stateProvince: string;
-    country: string;
+    cityTown: PlaceInfo;
+    stateProvince: PlaceInfo;
+    country: PlaceInfo;
 }
 
 interface Location {
     id: number;
     coordinates: Coordinates;
     generalCoordinates: GeneralCoordinates;
+    generalLocation: GeneralLocation;
     cityTown: string;
     stateProvince: string;
     country: string;
@@ -82,6 +90,14 @@ const mapOptions: google.maps.MapOptions = {
     styles: cityLevelStyles,
 };
 
+function trimAndToLowerCase(value: string): string {
+    return value.trim().toLowerCase();
+}
+
+function formatCoordinateTo6DecimalPlaces(n: number): number {
+    return Math.trunc(n * 1e6) / 1e6;
+}
+
 // const stockCoordinates: Coordinates = {
 //     latitude: 43.526646,
 //     longitude: -79.891205,
@@ -90,6 +106,9 @@ const mapOptions: google.maps.MapOptions = {
 const defaultCenter: google.maps.LatLngLiteral = { lat: 43.526646, lng: -79.891205 };
 
 // const GOOGLE_LIBRARIES: ('marker' | 'geometry' | 'places')[] = ['marker'];
+
+const API_URL = 'http://ec2-18-119-114-112.us-east-2.compute.amazonaws.com:3001';
+// const API_URL = 'http://localhost:3001';
 
 export default function Map() {
     const [map, setMap] = useState<google.maps.Map | null>(null);
@@ -121,14 +140,6 @@ export default function Map() {
     const [error, setError] = useState<string | null>(null);
 
     const [notes, setNotes] = useState<Note[]>([]);
-    const [locations, setLocations] = useState<Location[]>(() => {
-        try {
-            const stored = localStorage.getItem('locations');
-            return stored ? (JSON.parse(stored) as Location[]) : [];
-        } catch {
-            return [];
-        }
-    });
 
     async function getCoordinatesFromLocation(query: string): Promise<Coordinates | null> {
         const url = `https://nominatim.openstreetmap.org/search.php?q=${query}&format=jsonv2`;
@@ -139,11 +150,15 @@ export default function Map() {
             if (!result) {
                 throw new Error(`No geocoding result for "${query}"`);
             }
-
-            return {
+            console.log('cannot', result);
+            const coordinates: Coordinates = {
                 latitude: parseFloat(result[0].lat),
                 longitude: parseFloat(result[0].lon),
             };
+
+            console.log(coordinates);
+
+            return coordinates;
         } catch (err) {
             console.log(err);
             setError(String(err));
@@ -151,69 +166,29 @@ export default function Map() {
         }
     }
 
-    async function getGeneralCoordinates(addressOSM: AddressOSM): Promise<GeneralCoordinates | null> {
+    async function getGeneralCoordinates(generalLocation: GeneralLocation): Promise<GeneralCoordinates | null> {
         try {
-            const cityTown = `${addressOSM.cityTown}, ${addressOSM.stateProvince}, ${addressOSM.country}`;
-            const stateProvince = `${addressOSM.stateProvince}, ${addressOSM.country}`;
-            const country = addressOSM.country;
+            const cityTown = `${generalLocation.cityTown.name}, ${generalLocation.stateProvince.name}, ${generalLocation.country.name}`;
+            const stateProvince = `${generalLocation.stateProvince.name}, ${generalLocation.country.name}`;
+            const country = generalLocation.country.name;
 
             const cityTownCoordinates: Coordinates | null = await getCoordinatesFromLocation(cityTown);
             const stateProvinceCoordinates: Coordinates | null = await getCoordinatesFromLocation(stateProvince);
             const countryCoordinates: Coordinates | null = await getCoordinatesFromLocation(country);
 
+            console.log('THE THREE', cityTown);
             if (!cityTownCoordinates || !stateProvinceCoordinates || !countryCoordinates) {
                 throw new Error('Failed to get general coordinates');
             }
-
             const generalCoordinates: GeneralCoordinates = {
                 cityTown: cityTownCoordinates,
                 stateProvince: stateProvinceCoordinates,
                 country: countryCoordinates,
             };
-
+            console.log('general locay', generalCoordinates);
             return generalCoordinates;
         } catch (err) {
             console.error("Couldn't get general coordinates", err);
-            setError(String(err));
-            return null;
-        }
-    }
-
-    async function getLocationData(lat: number, lng: number): Promise<Location | null> {
-        const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`;
-        try {
-            const { address, error } = await fetch(url).then((res) => res.json());
-
-            if (error) {
-                setError(error);
-                return null;
-            }
-
-            if (!address) return null;
-
-            const parsedAddress: AddressOSM = {
-                cityTown: address.city || address.town || address.county,
-                stateProvince: address.state,
-                country: address.country,
-            };
-
-            if (!parsedAddress) throw Error('Failed to parse address');
-
-            const generalCoordinates: GeneralCoordinates | null = await getGeneralCoordinates(parsedAddress);
-
-            if (!generalCoordinates) throw Error('Failed to get general location data.');
-
-            const coordinates: Coordinates = { latitude: lat, longitude: lng };
-            return {
-                id: Date.now(),
-                coordinates,
-                generalCoordinates,
-                cityTown: address.city || address.town || address.county,
-                stateProvince: address.state,
-                country: address.country,
-            };
-        } catch (err) {
-            console.error('', err);
             setError(String(err));
             return null;
         }
@@ -251,54 +226,6 @@ export default function Map() {
         }
     }, [error]);
 
-    // Determine coordinates of city on the viewport
-    useEffect(() => {
-        if (!map) return;
-
-        const geocoder = new google.maps.Geocoder();
-
-        const onIdle = () => {
-            const center = map.getCenter();
-            const zoomLevel = map.getZoom() ?? 0;
-            if (!center) return;
-
-            if (zoomLevel > 12) {
-                geocoder.geocode({ location: center }, (results, status) => {
-                    if (status !== 'OK' || !results || !results.length) return;
-
-                    // results[0] is the most‐specific level (street address)
-                    // later entries are higher‐order (locality, admin_area_level_1, country)
-                    const components = results[0].address_components;
-
-                    const cityTown = components.find((component) => component.types.includes('locality'))?.long_name;
-                    const stateProvince = components.find((component) =>
-                        component.types.includes('administrative_area_level_1')
-                    )?.long_name;
-                    const country = components.find((component) => component.types.includes('country'))?.long_name;
-                    if (cityTown === undefined || stateProvince === undefined || country === undefined) return;
-
-                    const currentLocation: GeneralLocation = {
-                        cityTown,
-                        stateProvince,
-                        country,
-                    };
-
-                    setCurrentFocusedLocation(currentLocation);
-                });
-            }
-        };
-
-        // Idle fires once after panning or zooming finishes
-        const listener = map.addListener('idle', onIdle);
-
-        // run immediately once
-        onIdle();
-
-        return () => {
-            google.maps.event.removeListener(listener);
-        };
-    }, [map]);
-
     // FETCH MESSAGES BASED ON CITY ON VIEWPORT
     useEffect(() => {
         console.log('LAST', lastFocusedLocation);
@@ -310,8 +237,7 @@ export default function Map() {
             setIsFetchingNotes(true);
             console.log('the location', JSON.stringify(currentFocusedLocation));
             try {
-                const url = 'http://localhost:3001/notes/city';
-                // const url = 'http://localhost:3001/locations/countries';
+                const url = `${API_URL}/notes/city`;
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -339,6 +265,7 @@ export default function Map() {
                     return;
                 }
 
+                // eslint-disable-next-line prefer-const
                 let preparedNotes: Note[] = [];
 
                 for (let i = 0; i < notes.length; i++) {
@@ -359,7 +286,7 @@ export default function Map() {
                 console.log('RECEIVED NOTES', preparedNotes);
             } catch (e) {
                 console.log(e);
-                setError(String(e));
+                // setError(String(e));
             } finally {
                 setIsFetchingNotes(false);
             }
@@ -381,6 +308,205 @@ export default function Map() {
 
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentFocusedLocation]);
+
+    useEffect(() => {
+        async function fetchCityTownNumbers() {
+            try {
+                const url = `${API_URL}/locations/cities`;
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                });
+                const jsonListOfCities = await response.json();
+                console.log('notes areeeee', jsonListOfCities);
+
+                const cities: CityData[] = Object.values(jsonListOfCities).map((city) => {
+                    const typedCity = city as RawLocationCountData;
+
+                    const coords: Coordinates = {
+                        latitude: typedCity.latitude,
+                        longitude: typedCity.longitude,
+                    };
+                    const locationCountData: CityData = [typedCity.count, coords];
+                    return locationCountData;
+                });
+
+                setCityTowns(cities);
+            } catch (e) {
+                console.log(e);
+                setError(String(e));
+            }
+        }
+        async function fetchStateProvinceNumbers() {
+            try {
+                const url = `${API_URL}/locations/states`;
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                });
+                const jsonListOfStates = await response.json();
+
+                const states: CityData[] = Object.values(jsonListOfStates).map((state) => {
+                    const typedState = state as RawLocationCountData;
+
+                    const coords: Coordinates = {
+                        latitude: typedState.latitude,
+                        longitude: typedState.longitude,
+                    };
+                    const locationCountData: CityData = [typedState.count, coords];
+                    return locationCountData;
+                });
+
+                setStateProvinces(states);
+            } catch (e) {
+                console.log(e);
+                setError(String(e));
+            }
+        }
+        async function fetchCountryNumbers() {
+            try {
+                const url = `${API_URL}/locations/countries`;
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' },
+                });
+                const jsonListOfCountries = await response.json();
+
+                const countries: CityData[] = Object.values(jsonListOfCountries).map((country) => {
+                    const typedCountry = country as RawLocationCountData;
+
+                    const coords: Coordinates = {
+                        latitude: typedCountry.latitude,
+                        longitude: typedCountry.longitude,
+                    };
+                    const locationCountData: CityData = [typedCountry.count, coords];
+                    return locationCountData;
+                });
+
+                setCountries(countries);
+            } catch (e) {
+                console.log(e);
+                setError(String(e));
+            }
+        }
+
+        fetchCityTownNumbers();
+        fetchStateProvinceNumbers();
+        fetchCountryNumbers();
+    }, []);
+
+    function findResultByType(type: string, results: google.maps.GeocoderResult[]) {
+        return results.find((result) => result.types.includes(type));
+    }
+
+    async function getGeneralLocation(coordinates: google.maps.LatLngLiteral | null): Promise<GeneralLocation | null> {
+        const geocoder = new google.maps.Geocoder();
+
+        const coords = coordinates ? coordinates : map?.getCenter();
+        if (!coords) {
+            console.log('stippepp');
+            return null;
+        }
+
+        console.log('sfoiwsnoin');
+
+        return new Promise((resolve) => {
+            geocoder.geocode({ location: coords }, (results, status) => {
+                if (status !== 'OK' || !results || !results?.length) {
+                    resolve(null);
+                    return;
+                }
+
+                console.log('RESULTS', results);
+
+                const cityResult =
+                    findResultByType('locality', results) ||
+                    findResultByType('administrative_area_level_2', results) ||
+                    findResultByType('administrative_area_level_3', results);
+                const stateResult = findResultByType('administrative_area_level_1', results);
+                const countryResult = findResultByType('country', results);
+
+                if (cityResult && stateResult && countryResult) {
+                    const currentLocation: GeneralLocation = {
+                        cityTown: {
+                            placeId: cityResult.place_id,
+                            name: cityResult.formatted_address.split(',')[0].trim(),
+                        },
+                        stateProvince: {
+                            placeId: stateResult.place_id,
+                            name: stateResult.formatted_address.split(',')[0].trim(),
+                        },
+                        country: {
+                            placeId: countryResult.place_id,
+                            name: countryResult.formatted_address.split(',')[0].trim(),
+                        },
+                    };
+
+                    console.log('LRTRFJKNS', currentLocation);
+                    resolve(currentLocation);
+                } else {
+                    resolve(null);
+                }
+            });
+        });
+    }
+
+    async function getLocation(lat: number, lng: number) {
+        try {
+            const generalLocation: GeneralLocation | null = await getGeneralLocation({ lat, lng });
+
+            if (!generalLocation) throw Error('Failed to get location names.');
+
+            const generalCoordinates: GeneralCoordinates | null = await getGeneralCoordinates(generalLocation);
+
+            if (!generalCoordinates) throw Error('Failed to get general location coordinates.');
+
+            return {
+                id: Date.now(),
+                coordinates: { latitude: lat, longitude: lng },
+                generalCoordinates,
+                generalLocation,
+                cityTown: generalLocation.cityTown.name,
+                stateProvince: generalLocation.stateProvince.name,
+                country: generalLocation.country.name,
+            };
+        } catch (err) {
+            console.error('', err);
+            setError(String(err));
+            return null;
+        }
+    }
+
+    // Determine coordinates of city on the viewport
+    useEffect(() => {
+        if (!map) return;
+
+        const onIdle = async () => {
+            const center = map.getCenter();
+            const zoomLevel = map.getZoom() ?? 0;
+            if (!center) return;
+
+            if (zoomLevel > 9) {
+                const currentLocation: GeneralLocation | null = await getGeneralLocation(null);
+                console.log('Viewport Location', currentLocation);
+                if (currentLocation) {
+                    setCurrentFocusedLocation(currentLocation);
+                }
+            }
+        };
+
+        // Idle fires once after panning or zooming finishes
+        const listener = map.addListener('idle', onIdle);
+
+        // run immediately once
+        onIdle();
+
+        return () => {
+            google.maps.event.removeListener(listener);
+        };
+
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [map]);
 
     // Map Zoom
     useEffect(() => {
@@ -428,13 +554,18 @@ export default function Map() {
                 toggleCountriesOn();
             } else if (zoomLevel > 3 && zoomLevel <= 5) {
                 toggleStateProvincesOn();
-            } else if (zoomLevel > 5 && zoomLevel <= 12) {
+            } else if (zoomLevel > 5 && zoomLevel <= 9) {
                 toggleCityTownsOn();
-                map.setOptions({ draggableCursor: 'default' });
-                setIsWriting(false);
-                setIsInWritingRange(false);
             } else {
                 toggleNotesOn();
+            }
+
+            // Determine writing range
+            if (zoomLevel <= 13) {
+                setIsWriting(false);
+                setIsInWritingRange(false);
+                map.setOptions({ draggableCursor: 'default' });
+            } else {
                 setIsInWritingRange(true);
             }
         };
@@ -454,61 +585,14 @@ export default function Map() {
         console.log('YEPPIE');
     }, [notes]);
 
-    // Sort number of places
-    useEffect(() => {
-        localStorage.setItem('locations', JSON.stringify(locations));
-
-        function accumulateData() {
-            // let cityTowns: CityTown[] = [];
-            // let stateProvinces: StateProvince[] = [];
-            // let countries: Country[] = [];
-            let cityTowns: Record<string, CityData> = {};
-            let stateProvinces: Record<string, CityData> = {};
-            let countries: Record<string, CityData> = {};
-
-            for (let i = 0; i < locations.length; i++) {
-                const location = locations[i];
-
-                if (location.cityTown in cityTowns) {
-                    cityTowns[location.cityTown][0] += 1;
-                } else {
-                    cityTowns[location.cityTown] = [1, location.generalCoordinates.cityTown];
-                }
-
-                if (location.stateProvince in stateProvinces) {
-                    stateProvinces[location.stateProvince][0] += 1;
-                } else {
-                    stateProvinces[location.stateProvince] = [1, location.generalCoordinates.stateProvince];
-                }
-
-                if (location.country in countries) {
-                    countries[location.country][0] += 1;
-                } else {
-                    countries[location.country] = [1, location.generalCoordinates.country];
-                }
-            }
-
-            console.log('IT IS 1', Object.values(cityTowns)[1]);
-            console.log('IT IS 2', Object.values(stateProvinces));
-            console.log('IT IS 3', Object.values(countries));
-
-            setCityTowns(Object.values(cityTowns));
-            setStateProvinces(Object.values(stateProvinces));
-            setCountries(Object.values(countries));
-
-            console.log('CITIES', cityTowns);
-            // console.log('STATES', stateProvinces);
-            // console.log('COUNTRIES', countries);
-        }
-
-        accumulateData();
-    }, [locations]);
-
     // Center map on user's location
     useEffect(() => {
         navigator.geolocation.getCurrentPosition(
             ({ coords }) => {
-                setCenter({ lat: coords.latitude, lng: coords.longitude });
+                setCenter({
+                    lat: formatCoordinateTo6DecimalPlaces(coords.latitude),
+                    lng: formatCoordinateTo6DecimalPlaces(coords.longitude),
+                });
             },
             () => {},
             { enableHighAccuracy: true }
@@ -526,11 +610,43 @@ export default function Map() {
         }
     }
 
+    async function createNotInDatabase(text: string, location: Location): Promise<[boolean, string]> {
+        try {
+            const url = `${API_URL}/notes`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, location }),
+            });
+            const { message, noteId, error } = await response.json();
+
+            if (error) {
+                console.log(error);
+                setError(String(error));
+                return [false, ''];
+            }
+
+            console.log(message);
+
+            return [true, noteId];
+        } catch (e) {
+            console.log(e);
+            setError(String(e));
+            return [false, ''];
+        }
+    }
+
     // Handle map clicks to add notes
     const handleMapClick = useCallback(async (e: google.maps.MapMouseEvent) => {
-        const lat = e.latLng?.lat();
-        const lng = e.latLng?.lng();
-        if (lat == null || lng == null) return;
+        let lat = e.latLng?.lat();
+        let lng = e.latLng?.lng();
+        if (lat == null || lng == null) {
+            return;
+        } else {
+            lat = formatCoordinateTo6DecimalPlaces(lat);
+            lng = formatCoordinateTo6DecimalPlaces(lng);
+        }
+
         const text = prompt('Enter your note:');
         if (!text) return;
 
@@ -539,12 +655,19 @@ export default function Map() {
         console.log({ latitude: lat, longitude: lng });
 
         try {
-            const location: Location | null = await getLocationData(lat, lng);
+            const location: Location | null = await getLocation(lat, lng);
             if (!location) return;
-            console.log('LOCATION', location);
 
-            setNotes((current) => [...current, { id: Date.now(), timestamp: new Date(), location, text }]);
-            setLocations((current) => [...current, location]);
+            // console.log(text, JSON.stringify(location));
+            // return;
+
+            const response = await createNotInDatabase(text, location);
+
+            if (response[0]) {
+                setNotes((current) => [...current, { id: Number(response[1]), timestamp: new Date(), location, text }]);
+
+                // Fetch Location Counts
+            }
         } catch (err) {
             console.error('Reverse geocode failed:', err);
         } finally {
@@ -554,7 +677,7 @@ export default function Map() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Markers
+    // MARKERS
     const mapRef = useRef<google.maps.Map | null>(null);
     const noteMarkers = useRef<google.maps.OverlayView[]>([]);
     const cityTownMarkers = useRef<google.maps.OverlayView[]>([]);
@@ -665,7 +788,7 @@ export default function Map() {
                 center={center}
                 zoom={12}
                 onLoad={onMapLoad}
-                onClick={isWriting && zoomLevel > 12 ? handleMapClick : undefined}
+                onClick={isWriting && isInWritingRange ? handleMapClick : undefined}
                 options={mapOptions}
             >
                 {/* User location marker */}
