@@ -140,7 +140,7 @@ export function MapProvider({ children }: ChildrenProps) {
         const updateStyles = () => {
             const zoomLevel = map.getZoom() ?? 0;
             setZoomLevel(zoomLevel);
-            console.log('LEVEL', zoomLevel);
+            // console.log('LEVEL', zoomLevel);
 
             // Adjust styles based on zoom level
             const dynamicOptions: google.maps.MapOptions = {
