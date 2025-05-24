@@ -33,7 +33,7 @@ const MapContext = createContext<
 >(undefined);
 
 // const defaultCenter: google.maps.LatLngLiteral = { lat: 40.7128, lng: -74.006 };
-const defaultCenter: google.maps.LatLngLiteral = { lat: 43.526646, lng: -79.891205 };
+const defaultCenter: google.maps.LatLngLiteral = { lat: 40.758896, lng: -73.98513 };
 
 export function MapProvider({ children }: ChildrenProps) {
     const [map, setMap] = useState<google.maps.Map | null>(null);

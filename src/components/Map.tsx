@@ -177,7 +177,7 @@ export default function Map() {
     }
 
     return (
-        <div ref={containerRef} className="relative w-full h-full border border-amber-500">
+        <div ref={containerRef} className="relative w-full h-full">
             <GoogleMap
                 mapContainerStyle={containerStyle}
                 center={center}

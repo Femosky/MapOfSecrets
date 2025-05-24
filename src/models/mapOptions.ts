@@ -4,6 +4,7 @@ export const mapOptions: google.maps.MapOptions = {
     zoomControl: true,
     clickableIcons: false,
     mapTypeControl: false,
+    gestureHandling: 'greedy',
     streetViewControl: false,
     rotateControl: false,
     tilt: 0,
