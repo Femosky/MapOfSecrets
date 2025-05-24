@@ -25,6 +25,7 @@ const MapContext = createContext<
           countriesVisible: boolean;
           toggleIsWriting: () => void;
           isWriting: boolean;
+          setIsWriting: React.Dispatch<React.SetStateAction<boolean>>;
           isInWritingRange: boolean;
           getGeneralLocation: (coordinates: google.maps.LatLngLiteral | null) => Promise<GeneralLocation | null>;
       }
@@ -255,6 +256,7 @@ export function MapProvider({ children }: ChildrenProps) {
                 countriesVisible,
                 toggleIsWriting,
                 isWriting,
+                setIsWriting,
                 isInWritingRange,
                 getGeneralLocation,
             }}

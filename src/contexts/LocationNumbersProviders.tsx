@@ -39,8 +39,6 @@ export function LocationNumbersProviders({ children }: ChildrenProps) {
                 return locationCountData;
             });
 
-            console.log('IT FETCHED?');
-
             setCityTowns(cities);
         } catch (e) {
             console.log(e);

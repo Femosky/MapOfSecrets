@@ -4,15 +4,38 @@ export function makeHTMLMarkerClass() {
     return class HTMLMarker extends google.maps.OverlayView {
         private el: HTMLDivElement;
         private pos: google.maps.LatLngLiteral;
+        id: string;
+        type: string;
+        clickHandler: (id: string, type: string) => void;
 
-        constructor(map: google.maps.Map, position: google.maps.LatLngLiteral, content: string, type: string) {
+        constructor(
+            map: google.maps.Map,
+            position: google.maps.LatLngLiteral,
+            content: string,
+            type: string,
+            id: string,
+            clickHandler: (id: string, type: string) => void
+        ) {
             super();
+            this.id = id;
+            this.type = type;
             this.pos = position;
+            this.clickHandler = clickHandler;
             this.el = document.createElement('div');
             Object.assign(this.el.style, {
                 position: 'absolute',
                 transform: 'translate(-50%, -100%)',
                 padding: '4px 8px',
+                maxWidth: '10rem',
+                overflow: 'hidden', // hide the rest
+                display: '-webkit-box', // establish the box
+                WebkitBoxOrient: 'vertical', // stack vertically
+                WebkitLineClamp: '4',
+                color: 'white',
+                border: '1px solid white',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                zIndex: '0',
                 background:
                     type === 'note'
                         ? 'black'
@@ -23,11 +46,12 @@ export function makeHTMLMarkerClass() {
                         : type === 'country'
                         ? 'red'
                         : 'orange',
-                color: 'white',
-                borderRadius: '4px',
-                cursor: 'pointer',
             });
             this.el.innerText = content;
+            this.el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.clickHandler(this.id, this.type);
+            });
             this.setMap(map);
         }
 
@@ -40,6 +64,10 @@ export function makeHTMLMarkerClass() {
             const point = proj.fromLatLngToDivPixel(new google.maps.LatLng(this.pos))!;
             this.el.style.left = point.x + 'px';
             this.el.style.top = point.y + 'px';
+        }
+
+        setZIndex(z: number) {
+            this.el.style.zIndex = String(z);
         }
 
         onRemove() {

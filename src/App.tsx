@@ -6,7 +6,7 @@ import { NotesProvider } from './contexts/NotesProvider';
 
 function App() {
     return (
-        <div className="w-full h-screen overflow-hidden">
+        <div className=" w-full h-screen overflow-hidden">
             <NotesProvider>
                 <MapProvider>
                     <LocationNumbersProviders>

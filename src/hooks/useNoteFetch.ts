@@ -52,7 +52,7 @@ export function useNoteFetch() {
                 for (let i = 0; i < notes.length; i++) {
                     const note = notes[i];
                     const parsedNote: Note = note as Note;
-                    if (seenNoteIds.has(parsedNote.id)) continue;
+                    // if (seenNoteIds.has(parsedNote.id)) continue;
 
                     setSeenNoteIds((prev) => new Set(prev).add(i));
                     preparedNotes.push(parsedNote);
