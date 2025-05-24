@@ -3,6 +3,7 @@ import Map from './components/Map';
 import { LocationNumbersProviders } from './contexts/LocationNumbersProviders';
 import { MapProvider } from './contexts/MapProvider';
 import { NotesProvider } from './contexts/NotesProvider';
+import { Analytics } from '@vercel/analytics/react';
 
 function App() {
     return (
@@ -14,6 +15,7 @@ function App() {
                     </LocationNumbersProviders>
                 </MapProvider>
             </NotesProvider>
+            <Analytics />
         </div>
     );
 }
