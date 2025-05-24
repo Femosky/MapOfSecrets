@@ -7,7 +7,7 @@ import { Analytics } from '@vercel/analytics/react';
 
 function App() {
     return (
-        <div className=" w-full h-screen overflow-hidden">
+        <div className=" w-full h-dvh">
             <NotesProvider>
                 <MapProvider>
                     <LocationNumbersProviders>
