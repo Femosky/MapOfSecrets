@@ -1,5 +1,4 @@
-# Backend
-[Link to the backend](https://github.com/Femosky/MapOfSecrets_Backend)
+#### [Link to the backend](https://github.com/Femosky/MapOfSecrets_Backend)
 
 # React + TypeScript + Vite
 
