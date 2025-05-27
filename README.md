@@ -1,16 +1,15 @@
 # MapOfSecrets
 
-[![Frontend Deployment](https://img.shields.io/badge/Frontend-Vercel-00C7B7)](https://map-of-secrets.vercel.app)  
-[![Backend](https://img.shields.io/badge/Backend-AWS_EC2-FF9900)](LINK_TO_BACKEND_REPO)
+[![Frontend Deployment](https://img.shields.io/badge/Frontend-Vercel-00C7B7)](https://map-of-secrets.vercel.app) [![Backend Repository](https://img.shields.io/badge/Backend-AWS_EC2-FF9900)](https://github.com/Femosky/MapOfSecrets_Backend)
 
-A full-stack web app that’s a space to get your deepest, darkest secrets off your chest—anonymously, of course. :contentReference[oaicite:0]{index=0}
+A full-stack web app that’s a space to get your deepest, darkest secrets off your chest—anonymously, of course.
 
 ---
 
 ## 🚀 Live Demo
 
-**Frontend:** [map-of-secrets.vercel.app](https://map-of-secrets.vercel.app) :contentReference[oaicite:1]{index=1}  
-**Backend:** _See the linked repo above_
+**Frontend:** [map-of-secrets.vercel.app](https://map-of-secrets.vercel.app)
+**Backend:** _See the linked repo above_ or [Click here](https://github.com/Femosky/MapOfSecrets_Backend)
 
 ---
 
@@ -36,9 +35,8 @@ A full-stack web app that’s a space to get your deepest, darkest secrets off y
 ## 🛠 Tech Stack
 
 ### Frontend  
-- **React** + **TypeScript** + **Vite** :contentReference[oaicite:2]{index=2}  
-- @react-google-maps/api  
-- @googlemaps/markerclusterer  
+- **React** + **TypeScript** + **Vite**
+- Google Maps API
 - Tailwind CSS  
 - Framer Motion
 
