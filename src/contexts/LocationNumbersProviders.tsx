@@ -1,13 +1,13 @@
 import { createContext, useEffect, useState } from 'react';
 import type { ChildrenProps, Coordinates, PlaceData, RawLocationCountData } from '../models/mapInterfaces';
 import { API_URL } from '../constants/apiUrls';
+import { useError } from '../hooks/useError';
 
 const LocationNumbersContext = createContext<
     | {
           cityTowns: PlaceData[];
           stateProvinces: PlaceData[];
           countries: PlaceData[];
-          error: string | null;
           fetchLocationNumbers: () => Promise<void>;
       }
     | undefined
@@ -17,7 +17,8 @@ export function LocationNumbersProviders({ children }: ChildrenProps) {
     const [cityTowns, setCityTowns] = useState<PlaceData[]>([]);
     const [stateProvinces, setStateProvinces] = useState<PlaceData[]>([]);
     const [countries, setCountries] = useState<PlaceData[]>([]);
-    const [error, setError] = useState<string | null>(null);
+
+    const { setError } = useError();
 
     async function fetchCityTownNumbers() {
         try {
@@ -108,9 +109,10 @@ export function LocationNumbersProviders({ children }: ChildrenProps) {
         fetchCountryNumbers();
         fetchStateProvinceNumbers();
         fetchCityTownNumbers();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
     return (
-        <LocationNumbersContext.Provider value={{ cityTowns, stateProvinces, countries, fetchLocationNumbers, error }}>
+        <LocationNumbersContext.Provider value={{ cityTowns, stateProvinces, countries, fetchLocationNumbers }}>
             {children}
         </LocationNumbersContext.Provider>
     );

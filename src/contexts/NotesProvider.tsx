@@ -1,13 +1,12 @@
 import { createContext, useState } from 'react';
 import type { ChildrenProps, Location, Note } from '../models/mapInterfaces';
 import { API_URL } from '../constants/apiUrls';
+import { useError } from '../hooks/useError';
 
 const NotesContext = createContext<
     | {
           notes: Note[];
           setNotes: React.Dispatch<React.SetStateAction<Note[]>>;
-          error: string | null;
-          setError: React.Dispatch<React.SetStateAction<string | null>>;
           createNoteInDatabase: (text: string, location: Location) => Promise<[boolean, string]>;
       }
     | undefined
@@ -15,7 +14,7 @@ const NotesContext = createContext<
 
 export function NotesProvider({ children }: ChildrenProps) {
     const [notes, setNotes] = useState<Note[]>([]);
-    const [error, setError] = useState<string | null>(null);
+    const { setError } = useError();
 
     async function createNoteInDatabase(text: string, location: Location): Promise<[boolean, string]> {
         try {
@@ -43,11 +42,7 @@ export function NotesProvider({ children }: ChildrenProps) {
         }
     }
 
-    return (
-        <NotesContext.Provider value={{ notes, setNotes, error, setError, createNoteInDatabase }}>
-            {children}
-        </NotesContext.Provider>
-    );
+    return <NotesContext.Provider value={{ notes, setNotes, createNoteInDatabase }}>{children}</NotesContext.Provider>;
 }
 
 export { NotesContext };

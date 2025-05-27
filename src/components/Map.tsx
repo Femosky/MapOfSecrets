@@ -14,6 +14,7 @@ import { maxCharCount, minCharCount } from '../constants/noteConstant';
 import { LoadingSpinner } from './LoadingSpinner';
 import { X } from 'lucide-react';
 import { LoadingScreen } from './LoadingScreen';
+import { useError } from '../hooks/useError';
 
 // const GOOGLE_LIBRARIES: ('marker' | 'geometry' | 'places')[] = ['marker'];
 
@@ -26,7 +27,19 @@ export default function Map() {
     const [lastClickedCoordinates, setLastClickedCoordinates] = useState<Coordinates | null>(null);
     const [isNoteEligible, setIsNoteEligible] = useState<boolean>(false);
 
-    const [error, setError] = useState<string | null>(null);
+    const [modal, setModal] = useState<boolean>(false);
+    const [isLocationDetails, setIsLocationDetails] = useState<boolean>(false);
+    const [isMinChar, setIsMinChar] = useState<boolean>(false);
+    const [isMaxChar, setIsMaxChar] = useState<boolean>(false);
+
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    const { error } = useError();
+    const { fetchLocationNumbers } = useLocationNumbers();
+    const { setNotes, createNoteInDatabase } = useNotes();
+    const { getLocation } = useGeneralLocation();
+    const { onMapLoad, selectedNote, setSelectedNote, loadingSaveNote, setLoadingSaveNote, setLoadingCoordinates } =
+        useMapMarkers();
 
     const {
         zoomLevel,
@@ -38,19 +51,6 @@ export default function Map() {
         isInWritingRange,
         toggleIsWriting,
     } = useMap();
-    const { fetchLocationNumbers } = useLocationNumbers();
-
-    const { setNotes, createNoteInDatabase } = useNotes();
-    const { getLocation } = useGeneralLocation();
-    const { onMapLoad, selectedNote, setSelectedNote, loadingSaveNote, setLoadingSaveNote, setLoadingCoordinates } =
-        useMapMarkers();
-
-    const containerRef = useRef<HTMLDivElement>(null);
-
-    const [modal, setModal] = useState<boolean>(false);
-    const [isLocationDetails, setIsLocationDetails] = useState<boolean>(false);
-    const [isMinChar, setIsMinChar] = useState<boolean>(false);
-    const [isMaxChar, setIsMaxChar] = useState<boolean>(false);
 
     // Animation variants
     const buttonVariants = {
@@ -84,24 +84,17 @@ export default function Map() {
         }
     }, [isMinChar, lastClickedCoordinates]);
 
-    async function handleNoteSubmit() {
-        if (!isNoteEligible) return;
-
-        await saveNote(lastClickedCoordinates!);
-    }
-
-    useEffect(() => {
-        if (error) {
-            alert(error);
-            setError(null);
-        }
-    }, [error]);
-
     useEffect(() => {
         if (!isInWritingRange || !isWriting) {
             setModal(false);
         }
     }, [isInWritingRange, isWriting]);
+
+    async function handleNoteSubmit() {
+        if (!isNoteEligible) return;
+
+        await saveNote(lastClickedCoordinates!);
+    }
 
     async function saveNote(coordinates: Coordinates) {
         const lat = coordinates.latitude;
@@ -141,6 +134,16 @@ export default function Map() {
         }
     }
 
+    const close = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setModal(false);
+    };
+
+    function closeNoteModal() {
+        setSelectedNote(null);
+        setIsLocationDetails(false);
+    }
+
     // Handle map clicks to add notes
     const handleMapClick = useCallback(async (e: google.maps.MapMouseEvent) => {
         let lat = e.latLng?.lat();
@@ -156,18 +159,7 @@ export default function Map() {
         setModal(true);
     }, []);
 
-    const close = (e: React.MouseEvent) => {
-        // prevent this click from re-opening it
-        e.stopPropagation();
-        setModal(false);
-    };
-
-    function closeNoteModal() {
-        setSelectedNote(null);
-        setIsLocationDetails(false);
-    }
-
-    // MARKERS
+    // Loading Screen
 
     if (loadError) {
         return <div>Error loading maps</div>;
@@ -189,6 +181,24 @@ export default function Map() {
                 {/* User location marker */}
                 <Marker position={center} />
 
+                {/* Error Toast */}
+                <AnimatePresence>
+                    {error && (
+                        <motion.div
+                            key="zoom-hint"
+                            layout
+                            initial={{ y: -20, opacity: 0, scale: 0.9 }}
+                            animate={{ y: 0, opacity: 1, scale: 1 }}
+                            exit={{ y: -20, opacity: 0, scale: 0.9 }}
+                            transition={{ type: 'spring', stiffness: 200, damping: 25, mass: 0.7 }}
+                            className="absolute z-[9999] top-6 left-1/2 w-fit max-w-sm transform -translate-x-1/2 px-2 py-2 rounded-full bg-red-500 backdrop-blur-sm shadow-[0_0px_10px_rgba(0,0,0,0.2)] text-white text-center font-light leading-tight"
+                        >
+                            {error}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Secret Details View Modal */}
                 <AnimatePresence>
                     {selectedNote && (
                         <>
@@ -265,6 +275,7 @@ export default function Map() {
                     )}
                 </AnimatePresence>
 
+                {/* Add Secret Modal */}
                 <AnimatePresence>
                     {modal && isInWritingRange && isWriting && (
                         <>
@@ -338,6 +349,7 @@ export default function Map() {
                     )}
                 </AnimatePresence>
 
+                {/* Add Secret Buttons */}
                 <AnimatePresence>
                     {notesVisible && zoomLevel >= 8 && (
                         <motion.button
@@ -367,6 +379,41 @@ export default function Map() {
                     )}
                 </AnimatePresence>
 
+                {/* Keep Zooming In Guide */}
+                <AnimatePresence>
+                    {zoomLevel > 3 && !isInWritingRange && (
+                        <motion.div
+                            key="zoom-hint"
+                            layout
+                            initial={{ y: -20, opacity: 0, scale: 0.9 }}
+                            animate={{ y: 0, opacity: 1, scale: 1 }}
+                            exit={{ y: -20, opacity: 0, scale: 0.9 }}
+                            transition={{ type: 'spring', stiffness: 200, damping: 25, mass: 0.7 }}
+                            className="absolute top-6 left-1/2 w-fit max-w-sm transform -translate-x-1/2 px-2 py-1 rounded-full bg-white/50 backdrop-blur-sm shadow-[0_0px_10px_rgba(0,0,0,0.2)] text-gray-800 text-center text-sm font-light leading-tight"
+                        >
+                            Keep zooming in to add a secret.
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Click to Write Guide */}
+                <AnimatePresence>
+                    {isWriting && !modal && (
+                        <motion.div
+                            key="zoom-hint"
+                            layout
+                            initial={{ y: -20, opacity: 0, scale: 0.9 }}
+                            animate={{ y: 0, opacity: 1, scale: 1 }}
+                            exit={{ y: -20, opacity: 0, scale: 0.9 }}
+                            transition={{ type: 'spring', stiffness: 200, damping: 25, mass: 0.7 }}
+                            className="absolute top-6 left-1/2 w-fit max-w-sm transform -translate-x-1/2 px-2 py-1 rounded-full bg-white/50 backdrop-blur-sm shadow-[0_0px_10px_rgba(0,0,0,0.2)] text-gray-800 text-center text-sm font-light leading-tight"
+                        >
+                            Click anywhere on the map to start writing.
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Zoom Guide at Globe Level */}
                 <AnimatePresence>
                     {zoomLevel <= 3 && (
                         <motion.div
@@ -376,7 +423,7 @@ export default function Map() {
                             animate={{ y: 0, opacity: 1, scale: 1 }}
                             exit={{ y: -20, opacity: 0, scale: 0.9 }}
                             transition={{ type: 'spring', stiffness: 200, damping: 25, mass: 0.7 }}
-                            className="absolute top-6 left-1/2 w-11/12 max-w-sm transform -translate-x-1/2 px-2 py-1 rounded-full bg-white/50 backdrop-blur-sm shadow-[0_0px_10px_rgba(0,0,0,0.2)] text-gray-800 text-center text-sm font-light leading-tight"
+                            className="absolute top-6 left-1/2 w-fit max-w-sm transform -translate-x-1/2 px-2 py-1 rounded-full bg-white/50 backdrop-blur-sm shadow-[0_0px_10px_rgba(0,0,0,0.2)] text-gray-800 text-center text-sm font-light leading-tight"
                         >
                             Scroll, pinch, or use the zoom controls in the bottom-right to zoom in and out.
                         </motion.div>

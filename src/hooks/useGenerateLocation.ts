@@ -1,10 +1,10 @@
-import { useState } from 'react';
 import type { Coordinates, GeneralCoordinates, GeneralLocation } from '../models/mapInterfaces';
 import { useMap } from './useMap';
+import { useError } from './useError';
 
 export function useGeneralLocation() {
     const { getGeneralLocation } = useMap();
-    const [error, setError] = useState<string | null>(null);
+    const { setError } = useError();
 
     async function getCoordinatesFromLocation(query: string): Promise<Coordinates | null> {
         const url = `https://nominatim.openstreetmap.org/search.php?q=${query}&format=jsonv2`;
@@ -81,5 +81,5 @@ export function useGeneralLocation() {
             return null;
         }
     }
-    return { getLocation, getGeneralLocation, error };
+    return { getLocation, getGeneralLocation };
 }
