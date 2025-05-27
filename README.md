@@ -69,8 +69,8 @@ A full-stack web app that’s a space to get your deepest, darkest secrets off y
    npm i @googlemaps/markerclusterer
 
 3. **Configure environment variables**
-   -- You need to get a google maps api key from [here](https://mapsplatform.google.com) first.
-   -- Create and use it here a `.env` file in the project root with:
+   - You need to get a google maps api key from [here](https://mapsplatform.google.com) first.
+   - Create and use it here a `.env` file in the project root with:
    ```bash
    VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 
