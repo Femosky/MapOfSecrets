@@ -8,8 +8,8 @@ A full-stack web app that’s a space to get your deepest, darkest secrets off y
 
 ## 🚀 Live Demo
 
-**Frontend:** [map-of-secrets.vercel.app](https://map-of-secrets.vercel.app)
-**Backend:** _See the linked repo above_ or [Click here](https://github.com/Femosky/MapOfSecrets_Backend)
+1. **Frontend:** [map-of-secrets.vercel.app](https://map-of-secrets.vercel.app)
+2. **Backend:** _See the linked repo above_ or [Click here](https://github.com/Femosky/MapOfSecrets_Backend)
 
 ---
 
