@@ -58,15 +58,6 @@ A full-stack web app that’s a space to get your deepest, darkest secrets off y
 2. **Install NPM and all required dependencies**  
    ```bash
    npm install
-   npm install tailwindcss @tailwindcss/vite
-   npm install tailwind-merge
-   npm install lucide-react
-   npm install framer-motion
-   npm install date-fns
-   npm i -g vercel
-   npm i @vercel/analytics
-   npm i @react-google-maps/api
-   npm i @googlemaps/markerclusterer
 
 3. **Configure environment variables**
    - You need to get a google maps api key from [here](https://mapsplatform.google.com) first.
