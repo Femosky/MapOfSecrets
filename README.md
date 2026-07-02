@@ -1,4 +1,5 @@
 # MapOfSecrets
+> **Status:** No longer maintained. This project is kept public for reference, but the live demo or backend services may no longer be available.
 
 [![Frontend Deployment](https://img.shields.io/badge/Frontend-Vercel-00C7B7)](https://map-of-secrets.vercel.app) [![Backend Repository](https://img.shields.io/badge/Backend-AWS_EC2-FF9900)](https://github.com/Femosky/MapOfSecrets_Backend)
 
